@@ -1,10 +1,15 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using University.Common.Models;
 using University.Common.Services;
-using University.Common.Extensions;
+using University.Infrastructure.Data;
+using University.Infrastructure.Models;
+using University.Infrastructure.Repositories;
+using University.Infrastructure.Services;
 
 namespace University.ConsoleApp
 {
@@ -13,42 +18,59 @@ namespace University.ConsoleApp
         static async Task Main(string[] args)
         {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
-            Console.InputEncoding = System.Text.Encoding.UTF8;
 
-            Console.WriteLine("=== Лабораторна робота №2: Асинхронний CRUD + Parallel ===\n");
+            Console.WriteLine("=== Лабораторна робота №3: Entity Framework Core ===\n");
 
-            // Створюємо асинхронний сервіс
-            var studentService = new CrudServiceAsync<Student>("students.json");
+            // Налаштування DI та DbContext
+            var services = new ServiceCollection();
 
+            services.AddDbContext<UniversityContext>(options =>
+                options.UseSqlite("Data Source=university.db"));
+
+            services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+            services.AddScoped(typeof(ICrudServiceAsync<>), typeof(CrudServiceAsync<>));
+
+            var serviceProvider = services.BuildServiceProvider();
+
+            using var scope = serviceProvider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<UniversityContext>();
+            await context.Database.MigrateAsync(); // застосовуємо міграції
+
+            var studentRepo = scope.ServiceProvider.GetRequiredService<IRepository<StudentEntity>>();
+            var studentService = new CrudServiceAsync<StudentEntity>(studentRepo);
+
+            // === Тестування ===
             var stopwatch = Stopwatch.StartNew();
 
-            Console.WriteLine("Паралельне створення 1000 студентів...\n");
+            Console.WriteLine("Створення 50 студентів у базі даних...");
 
-            // Паралельне створення 1000 студентів
-            await Parallel.ForEachAsync(
-                Enumerable.Range(1, 1000),
-                new ParallelOptions { MaxDegreeOfParallelism = 20 }, // обмежуємо кількість потоків
-                async (i, token) =>
+            for (int i = 0; i < 50; i++)
+            {
+                var student = Student.CreateNew(); // з Common
+
+                var studentEntity = new StudentEntity
                 {
-                    var student = Student.CreateNew();
-                    await studentService.CreateAsync(student);
-                });
+                    Id = student.Id,
+                    FirstName = student.FirstName,
+                    LastName = student.LastName,
+                    DateOfBirth = student.DateOfBirth,
+                    StudentId = student.StudentId,
+                    Course = student.Course,
+                    GPA = student.GPA
+                };
+
+                await studentService.CreateAsync(studentEntity);
+            }
 
             stopwatch.Stop();
 
-            // Результати
             var allStudents = (await studentService.ReadAllAsync()).ToList();
 
             Console.WriteLine($"Час виконання: {stopwatch.ElapsedMilliseconds} мс");
-            Console.WriteLine($"Успішно створено студентів: {allStudents.Count}");
-            Console.WriteLine($"Мінімальний GPA: {allStudents.Min(s => s.GPA)}");
-            Console.WriteLine($"Максимальний GPA: {allStudents.Max(s => s.GPA)}");
+            Console.WriteLine($"Студентів у БД: {allStudents.Count}");
             Console.WriteLine($"Середній GPA: {allStudents.Average(s => s.GPA):F2}");
 
-            // Збереження у файл
-            await studentService.SaveAsync();
-
-            Console.WriteLine("\n=== Лабораторна робота №2 виконана успішно! ===");
+            Console.WriteLine("\n=== Лабораторна №3 виконана! ===");
             Console.ReadKey();
         }
     }
