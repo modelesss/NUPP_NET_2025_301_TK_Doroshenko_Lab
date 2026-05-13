@@ -1,0 +1,9 @@
+Спочатку я створив новий проект University.Infrastructure. В ньому я розмістив весь шар роботи з базою даних.
+Я встановив потрібні NuGet пакети: Microsoft.EntityFrameworkCore, Microsoft.EntityFrameworkCore.Sqlite, Microsoft.EntityFrameworkCore.Tools та Design.
+Потім я створив Entity-моделі — це окремі класи для бази даних (PersonEntity, StudentEntity, TeacherEntity, CourseEntity). Вони відрізняються від доменних моделей з University.Common, бо там є анотації [Key], [Required] тощо.
+Далі я створив клас UniversityContext — це головний клас, який керує базою даних. У ньому я описав DbSet-и і в методі OnModelCreating налаштував зв’язки між таблицями за допомогою Fluent API (зокрема зв’язок один-до-багатьох між викладачем і курсами).
+Потім я реалізував Repository Pattern. Створив інтерфейс IRepository<T> і його реалізацію Repository<T>. Це дозволяє абстрагуватись від конкретної бази даних.
+Після цього я оновив CrudServiceAsync, щоб він тепер працював не через List<T>, а через Repository і Entity Framework.
+В Program.cs я налаштував Dependency Injection через ServiceCollection, додав DbContext, Repository і CrudService. Також викликав context.Database.MigrateAsync(), щоб автоматично застосувати міграції.
+В результаті програма створює 50 студентів і зберігає їх уже не в пам’ять, а в реальну базу даних SQLite — файл university.db.
+Я також створив міграцію через Package Manager Console командами Add-Migration і Update-Database.
